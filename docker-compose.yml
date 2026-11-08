@@ -1,0 +1,27 @@
+# Stream processor plus scoring API on one shared data volume.
+#   docker compose up --build        API and UI on http://localhost:8858
+# The processor job generates the event log, loads the offline store, replays the stream into the online
+# store, trains the model, and runs the skew gate. The API starts once it has finished successfully.
+services:
+  processor:
+    build: .
+    command: ["sh", "-c", "featstore build && featstore skew --expect-clean"]
+    environment:
+      FEATSTORE_CARDS: ${FEATSTORE_CARDS:-50000}
+      FEATSTORE_DAYS: ${FEATSTORE_DAYS:-60}
+    volumes:
+      - featstore-data:/app/data
+
+  api:
+    build: .
+    command: ["featstore", "serve"]
+    ports: ["8858:8858"]
+    volumes:
+      - featstore-data:/app/data
+    depends_on:
+      processor:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  featstore-data:

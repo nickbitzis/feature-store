@@ -1,0 +1,55 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Lint
+        run: uvx ruff check .
+      - name: Test
+        run: uv run --python 3.12 --group dev pytest -q
+
+  skew-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Build a small feature store (3,000 cards, 30 days)
+        run: uv run --python 3.12 featstore --data-dir data/ci build --cards 3000 --days 30
+      - name: Fail on any online/offline skew with the bug flag off
+        run: uv run --python 3.12 featstore --data-dir data/ci skew --sample 500 --tolerance 0 --expect-clean
+      - name: Fail if the planted window bug is not detected
+        run: uv run --python 3.12 featstore --data-dir data/ci skew --sample 500 --bug --expect-detected
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-report
+          path: data/ci/report.json
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t feature-store:ci .
+      - name: Start the service with a small build and smoke test it
+        run: |
+          docker run -d --name fs -p 8858:8858 -e FEATSTORE_CARDS=1500 -e FEATSTORE_DAYS=30 feature-store:ci
+          for i in $(seq 1 90); do curl -sf http://localhost:8858/healthz && break; sleep 2; done
+          curl -sf http://localhost:8858/healthz
+          curl -sf -X POST http://localhost:8858/score -H 'content-type: application/json' \
+            -d '{"card_id":12,"amount":480,"mcc":5732,"device_id":999999,"lat":33.1,"lon":-80.2,"cnp":1}'
+          curl -sf http://localhost:8858/metrics | grep featstore_stage_latency_seconds_count
+          curl -sf "http://localhost:8858/skew?live=true&sample=50" | grep '"passed":true'
+          docker exec fs featstore skew --sample 100 --expect-clean
+          docker logs fs | tail -5
+          docker rm -f fs

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feature Store</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1c2330; --muted: #5d6878; --border: #dde2e9;
+  --track: #e8ebf0; --accent: #2f6fdb; --good: #11804f; --good-soft: #e3f5ec;
+  --warn: #8a5a00; --warn-soft: #fff4dc; --bad: #b42318; --bad-soft: #fde8e6;
+  --line: #2f6fdb; --line2: #b26a00; --dot: #8c96a5;
+  --radius: 10px; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11151c; --panel: #181e27; --text: #e6eaf0; --muted: #9aa5b5; --border: #2a3340;
+    --track: #232b37; --accent: #6c9cf0; --good: #4ccb8f; --good-soft: #15302a;
+    --warn: #f3c46b; --warn-soft: #3a2e14; --bad: #ff8a7a; --bad-soft: #3b1d1b;
+    --line: #6c9cf0; --line2: #f3c46b; --dot: #6d7888;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { overflow-x: hidden; }
+body { margin: 0; background: var(--bg); color: var(--text); font-size: 14px; }
+header { padding: 14px 24px; display: flex; align-items: center; gap: 8px 18px; flex-wrap: wrap; border-bottom: 1px solid var(--border); background: var(--panel); }
+h1 { font-size: 18px; margin: 0; }
+nav { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+nav a { color: var(--muted); text-decoration: none; font-weight: 600; }
+nav a.on { color: var(--accent); }
+h2 { font-size: 13px; margin: 0 0 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.muted { color: var(--muted); }
+main { padding: 16px 24px 32px; display: grid; gap: 16px; grid-template-columns: repeat(12, minmax(0, 1fr)); max-width: 1500px; }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; min-width: 0; }
+.c12 { grid-column: span 12; } .c8 { grid-column: span 8; } .c6 { grid-column: span 6; } .c4 { grid-column: span 4; } .c3 { grid-column: span 3; }
+@media (max-width: 900px) { .c8, .c6, .c4, .c3 { grid-column: span 12; } main { padding: 12px 16px; } header { padding: 12px 16px; } }
+.kpi .v { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.kpi .l { color: var(--muted); margin-top: 2px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--border); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; border-top: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.wrap { white-space: normal; min-width: 220px; }
+tr.fraud td { background: var(--bad-soft); }
+table.fit td { white-space: normal; overflow-wrap: anywhere; }
+.scroll { overflow-x: auto; max-width: 100%; }
+.chip { font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--track); color: var(--muted); display: inline-block; }
+.chip.red { background: var(--bad-soft); color: var(--bad); }
+.chip.amber { background: var(--warn-soft); color: var(--warn); }
+.chip.green { background: var(--good-soft); color: var(--good); }
+svg { display: block; width: 100%; height: auto; }
+svg text { fill: var(--muted); font-size: 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+select, button, input { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; max-width: 100%; }
+button { cursor: pointer; } button.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.bar { height: 16px; background: var(--track); border-radius: 4px; overflow: hidden; min-width: 60px; }
+.bar div { height: 100%; background: var(--accent); }
+.bar.bad div { background: var(--bad); }
+.lineage { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 700px) { .lineage { grid-template-columns: minmax(0, 1fr); } }
+.node { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--bg); margin-bottom: 6px; overflow-wrap: anywhere; font-size: 13px; }
+.note { overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--track); padding: 10px; border-radius: 6px; font-size: 12px; margin: 0; }
+a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Feature Store</h1>
+  <span class="muted">Larkspur Card Services fraud features, synthetic data</span>
+  <nav>
+    <a href="#/model" id="nav-model">Model</a>
+    <a href="#/registry" id="nav-registry">Registry</a>
+    <a href="#/timeline" id="nav-timeline">Card timeline</a>
+    <a href="#/skew" id="nav-skew">Skew</a>
+    <a href="#/latency" id="nav-latency">Latency</a>
+    <a href="#/freshness" id="nav-freshness">Freshness</a>
+  </nav>
+</header>
+<main id="app"></main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const pct = (x, d = 1) => x == null ? "n/a" : (x * 100).toFixed(d) + "%";
+const num = (x, d = 3) => x == null ? "n/a" : Number(x).toFixed(d);
+const int = (x) => x == null ? "n/a" : Math.round(x).toLocaleString("en-US");
+const usd = (x) => x == null ? "n/a" : "$" + Math.round(x).toLocaleString("en-US");
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const dt = (ts) => new Date(ts * 1000).toISOString().slice(0, 16).replace("T", " ");
+const panel = (cls, title, body) => `<section class="panel ${cls}"><h2>${esc(title)}</h2>${body}</section>`;
+const kpi = (v, l) => `<section class="panel c3 kpi"><div class="v">${v}</div><div class="l">${esc(l)}</div></section>`;
+const cache = {};
+async function get(url) { if (cache[url]) return cache[url]; const r = await fetch(url); if (!r.ok) throw new Error(url + " " + r.status); return (cache[url] = await r.json()); }
+
+// Horizontal bars, one value axis.
+function bars(rows, fmt = (v) => num(v, 3), max) {
+  const hi = max ?? Math.max(...rows.map((r) => r.v), 1e-9);
+  return `<table class="fit">${rows.map((r) => `<tr><td>${esc(r.label)}</td><td style="width:50%"><div class="bar ${r.bad ? "bad" : ""}"><div style="width:${Math.max(0, Math.min(100, (r.v / hi) * 100))}%"></div></div></td><td class="num">${fmt(r.v)}</td></tr>`).join("")}</table>`;
+}
+
+// Scatter over time with one y-axis. Points can be colored.
+function timeChart({ xs, ys, colors, height = 160, yFmt = (v) => num(v, 0), line = false, width = 900 }) {
+  const W = width, H = height, L = 46, R = 10, T = 8, B = 22;
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), hi = Math.max(...ys, 1e-9) * 1.08;
+  const x = (t) => L + (x1 > x0 ? ((t - x0) / (x1 - x0)) * (W - L - R) : 0);
+  const y = (v) => T + (1 - v / hi) * (H - T - B);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img">`;
+  s += `<line x1="${L}" y1="${y(0)}" x2="${W - R}" y2="${y(0)}" stroke="${css("--border")}"/>`;
+  for (const v of [0, hi / 2, hi]) s += `<text x="${L - 4}" y="${y(v) + 3}" text-anchor="end">${yFmt(v)}</text>`;
+  for (let i = 0; i <= 4; i++) { const t = x0 + (i / 4) * (x1 - x0); s += `<text x="${x(t)}" y="${H - 6}" text-anchor="${i === 0 ? "start" : i === 4 ? "end" : "middle"}">${dt(t).slice(5, 10)}</text>`; }
+  if (line) { let d = ""; xs.forEach((t, i) => { d += (d ? "L" : "M") + x(t).toFixed(1) + "," + y(ys[i]).toFixed(1); }); s += `<path d="${d}" fill="none" stroke="${css("--line")}" stroke-width="1.4"/>`; }
+  xs.forEach((t, i) => { s += `<circle cx="${x(t).toFixed(1)}" cy="${y(ys[i]).toFixed(1)}" r="${colors && colors[i] === "--bad" ? 3.2 : 2.2}" fill="${css(colors ? colors[i] : "--line")}"><title>${dt(t)}: ${yFmt(ys[i])}</title></circle>`; });
+  return s + "</svg>";
+}
+
+// Vertical histogram, one y-axis (count).
+function histogram(labels, counts, height = 150, width = 600) {
+  const W = width, H = height, L = 40, R = 8, T = 8, B = 26, hi = Math.max(...counts, 1);
+  const bw = (W - L - R) / counts.length;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img">`;
+  for (const v of [0, hi / 2, hi]) { const yy = T + (1 - v / hi) * (H - T - B); s += `<text x="${L - 4}" y="${yy + 3}" text-anchor="end">${int(v)}</text>`; }
+  counts.forEach((c, i) => {
+    const h = (c / hi) * (H - T - B);
+    s += `<rect x="${L + i * bw + 2}" y="${H - B - h}" width="${bw - 4}" height="${h}" fill="${css("--line")}"><title>${labels[i]} ms: ${c}</title></rect>`;
+    s += `<text x="${L + i * bw + bw / 2}" y="${H - 8}" text-anchor="middle">${labels[i]}</text>`;
+  });
+  return s + "</svg>";
+}
+
+async function viewModel() {
+  const e = await get("/evaluation");
+  const ds = e.dataset, rows = [["Point-in-time training set, tested on point-in-time features", e.pit],
+    ["Leaky training set, tested on leaky features (what the offline report says)", e.leaky_offline],
+    ["Leaky model, tested on point-in-time features (what production sees)", e.leaky_in_production]];
+  const table = `<div class="scroll"><table><tr><th>Model and test set</th><th class="num">AUC</th><th class="num">Precision at ${pct(e.pit.alert_rate, 2)} alerts</th><th class="num">Recall</th><th class="num">Fraud dollars caught</th></tr>
+    ${rows.map(([n, m]) => `<tr><td class="wrap">${esc(n)}</td><td class="num">${num(m.auc, 4)}</td><td class="num">${pct(m.precision_at_alert_rate)}</td><td class="num">${pct(m.recall_at_alert_rate)}</td><td class="num">${usd(m.fraud_dollars_caught)} (${pct(m.dollar_recall)})</td></tr>`).join("")}</table></div>`;
+  const imp = Object.entries(e.importance).slice(0, 10).map(([k, v]) => ({ label: k, v: Math.max(0, v) }));
+  const types = Object.entries(e.by_fraud_type).map(([k, v]) => ({ label: `${k} (${v.rows})`, v: v.recall_at_alert_rate ?? 0 }));
+  $("#app").innerHTML =
+    kpi(num(e.pit.auc, 4), "AUC, point-in-time model, later test window") +
+    kpi(pct(e.pit.precision_at_alert_rate), `precision at a ${pct(e.pit.alert_rate, 2)} alert rate`) +
+    kpi(pct(e.pit.recall_at_alert_rate), "recall at that alert rate") +
+    kpi(usd(e.pit.fraud_dollars_caught), `of ${usd(e.pit.fraud_dollars)} fraud dollars in the test window`) +
+    panel("c12", "Point-in-time correct vs leaky training set", table +
+      `<p class="muted note">The leaky set joins each label to a daily feature snapshot stamped at midnight, so a 09:20 transaction sees the rest of its own day. Offline it looks as good or better. In production the online store serves point-in-time values and the leaky model drops to AUC ${num(e.leaky_in_production.auc, 3)}, with precision falling from ${pct(e.leaky_offline.precision_at_alert_rate)} to ${pct(e.leaky_in_production.precision_at_alert_rate)}.</p>`) +
+    panel("c6", "AUC by training set (one axis)", bars(rows.map(([n, m], i) => ({ label: ["point-in-time", "leaky, offline report", "leaky, in production"][i], v: m.auc, bad: i === 2 })), (v) => num(v, 4), 1)) +
+    panel("c6", "Recall at the alert rate, by fraud pattern", bars(types, (v) => pct(v), 1)) +
+    panel("c6", "Permutation importance, drop in AUC", bars(imp, (v) => num(v, 4))) +
+    panel("c6", "Data and split", `<table class="fit">
+      <tr><td>Events</td><td class="num">${int(ds.events)}</td></tr><tr><td>Cards</td><td class="num">${int(ds.cards)}</td></tr>
+      <tr><td>Fraud events</td><td class="num">${int(ds.fraud_events)} (${pct(ds.fraud_rate, 2)})</td></tr>
+      ${Object.entries(ds.fraud_by_type).map(([k, v]) => `<tr><td class="muted">&nbsp; ${esc(k)}</td><td class="num">${int(v)}</td></tr>`).join("")}
+      <tr><td>Arrived more than 60 s late</td><td class="num">${int(ds.late_events)}</td></tr>
+      <tr><td>Train window</td><td class="num">${dt(e.split.train[0]).slice(0, 10)} to ${dt(e.split.train[1]).slice(0, 10)}</td></tr>
+      <tr><td>Test window</td><td class="num">${dt(e.split.test[0]).slice(0, 10)} to ${dt(e.split.test[1]).slice(0, 10)}</td></tr>
+      <tr><td>Train rows / test rows</td><td class="num">${int(e.train_rows)} / ${int(e.test_rows)}</td></tr></table>`);
+}
+
+async function viewRegistry() {
+  const [r, lin] = await Promise.all([get("/registry"), get("/lineage")]);
+  const fmtW = (s) => s == null ? "" : s >= 86400 ? s / 86400 + "d" : s / 3600 + "h";
+  const rows = r.features.map((f) => `<tr><td><b>${esc(f.name)}</b></td><td>v${f.version}</td><td>${esc(f.aggregation)}${f.column ? "(" + esc(f.column) + ")" : ""}</td><td>${fmtW(f.window_s)}</td><td>${esc(f.source)}</td><td>${esc(f.owner)}</td><td class="num">${f.freshness_sla_s >= 86400 ? "24h" : f.freshness_sla_s + "s"}</td><td><code>${esc(f.definition_hash)}</code></td><td class="wrap">${esc(f.description)}</td></tr>`).join("");
+  const col = (k) => lin.nodes.filter((n) => n.kind === k).map((n) => `<div class="node">${esc(n.label)}</div>`).join("");
+  $("#app").innerHTML = panel("c12", `Feature registry: ${r.features.length} features, entity card`, `<div class="scroll"><table><tr><th>Feature</th><th>Version</th><th>Aggregation</th><th>Window</th><th>Source</th><th>Owner</th><th class="num">Freshness SLA</th><th>Definition hash</th><th>Description</th></tr>${rows}</table></div>
+    <p class="muted note">Each feature is one spec in <code>definitions.py</code>. The online Python and the offline SQL are both generated from it. The version bumps only when the hash of the semantic fields (aggregation, column, window, default, source) changes.</p>`) +
+    panel("c12", "Lineage: source to feature version to model", `<div class="lineage"><div><b>Sources</b>${col("source")}</div><div><b>Features</b>${col("feature")}</div><div><b>Models</b>${col("model")}${r.models.map((m) => `<p class="muted note">${esc(m.model_id)}: ${esc(m.algorithm)}, trained on ${esc(m.training_set)}, ${Object.keys(m.features).length} feature versions pinned, AUC ${num(m.auc, 4)}</p>`).join("")}</div></div>`);
+}
+
+async function viewTimeline(card) {
+  const ex = await get("/cards/examples");
+  card = card || (ex.account_takeover || ex.card_testing || ex.normal)[0];
+  const t = await get(`/cards/${card}/timeline`);
+  const tx = t.transactions, feats = t.features.map((f) => f.name);
+  const sel = window._feat || "txn_count_24h";
+  const opts = Object.entries(ex).map(([k, ids]) => `<optgroup label="${esc(k)}">${ids.map((i) => `<option value="${i}" ${i == card ? "selected" : ""}>card ${i}</option>`).join("")}</optgroup>`).join("");
+  const fopts = feats.map((f) => `<option ${f === sel ? "selected" : ""}>${f}</option>`).join("");
+  const colors = tx.map((r) => r.is_fraud ? "--bad" : "--dot");
+  const recent = tx.slice(-60).reverse();
+  $("#app").innerHTML = panel("c12", `Card ${card}: ${tx.length} transactions`, `<div class="controls"><label>Card <select id="card">${opts}</select></label><label>Feature <select id="feat">${fopts}</select></label><span class="legend"><span><i style="background:${css("--bad")}"></i>fraud</span><span><i style="background:${css("--dot")}"></i>legitimate</span></span></div>
+      <div class="muted">Amount per transaction, USD</div>${timeChart({ xs: tx.map((r) => r.ts), ys: tx.map((r) => r.amount), colors, yFmt: (v) => "$" + Math.round(v) })}
+      <div class="muted" style="margin-top:12px">${esc(sel)} as of each transaction (point-in-time, from the offline store)</div>${timeChart({ xs: tx.map((r) => r.ts), ys: tx.map((r) => r[sel]), colors, line: true, yFmt: (v) => Math.abs(v) >= 10 ? int(v) : num(v, 2) })}`) +
+    panel("c12", "Most recent transactions with point-in-time features", `<div class="scroll"><table><tr><th>Event time</th><th>Arrival lag</th><th class="num">Amount</th><th>MCC</th><th>CNP</th><th>Device</th><th class="num">Count 1h</th><th class="num">Count 24h</th><th class="num">Sum 24h</th><th class="num">Merchants 24h</th><th class="num">Since last</th><th class="num">Device seen</th><th class="num">Km from home</th><th>Label</th></tr>
+      ${recent.map((r) => `<tr class="${r.is_fraud ? "fraud" : ""}"><td>${dt(r.ts)}</td><td class="num">${int(r.arrival_ts - r.ts)}s</td><td class="num">$${num(r.amount, 2)}</td><td>${r.mcc}</td><td>${r.cnp ? "yes" : "no"}</td><td>${r.device_id}</td><td class="num">${int(r.txn_count_1h)}</td><td class="num">${int(r.txn_count_24h)}</td><td class="num">$${num(r.amount_sum_24h, 0)}</td><td class="num">${int(r.distinct_merchants_24h)}</td><td class="num">${int(r.secs_since_last_txn)}s</td><td class="num">${r.device_seen_before}</td><td class="num">${int(r.distance_from_home_km)}</td><td>${r.is_fraud ? `<span class="chip red">${esc(r.fraud_type)}</span>` : ""}</td></tr>`).join("")}</table></div>`);
+  $("#card").onchange = (e) => viewTimeline(e.target.value);
+  $("#feat").onchange = (e) => { window._feat = e.target.value; viewTimeline(card); };
+}
+
+async function viewSkew(bug = false) {
+  const r = await get(`/skew?bug=${bug}`);
+  const rows = r.features.map((f) => `<tr><td>${esc(f.feature)}</td><td class="num">${int(f.compared)}</td><td class="num">${int(f.mismatches)}</td><td style="width:30%"><div class="bar bad"><div style="width:${f.mismatch_rate * 100}%"></div></div></td><td class="num">${pct(f.mismatch_rate)}</td><td class="num">${f.max_abs_diff ? num(f.max_abs_diff, 2) : "0"}</td><td>${f.example ? `online ${num(f.example.online, 2)} vs offline ${num(f.example.offline, 2)}` : ""}</td></tr>`).join("");
+  $("#app").innerHTML =
+    kpi(r.passed ? `<span class="chip green">pass</span>` : `<span class="chip red">skew</span>`, bug ? "planted bug ON" : "planted bug off") +
+    kpi(int(r.compared_rows), `transactions compared, ${int(r.sampled_cards)} cards`) +
+    kpi(pct(r.worst_mismatch_rate), "worst per-feature mismatch rate") +
+    kpi(r.features_with_skew.length, "features with any mismatch") +
+    panel("c12", "Online served vs offline recomputed, same card, as-of time, and request", `<div class="controls"><button id="off" class="${bug ? "" : "on"}">Bug flag off</button><button id="on" class="${bug ? "on" : ""}">Bug flag on</button><span class="muted">window: last 24h before the watermark, tolerance ${pct(r.tolerance)}</span></div>
+      <div class="scroll"><table><tr><th>Feature</th><th class="num">Compared</th><th class="num">Mismatches</th><th>Rate</th><th class="num"></th><th class="num">Max abs diff</th><th>First example</th></tr>${rows}</table></div>
+      <p class="muted note">The planted bug changes the online window's right boundary from <code>ts &lt; as_of</code> to <code>ts &lt;= as_of</code>. Because the stream processor writes each transaction before it is scored, every window then counts the transaction itself. CI fails if any feature mismatches with the flag off, and fails if the check does not catch the flag on.</p>`);
+  $("#off").onclick = () => viewSkew(false);
+  $("#on").onclick = () => viewSkew(true);
+}
+
+async function viewLatency() {
+  delete cache["/latency"];
+  const l = await get("/latency"), b = l.benchmark;
+  const edges = b.histogram_ms.edges.map((e) => e >= 1 ? String(e) : String(e));
+  const lab = edges.map((e, i) => i === edges.length - 1 ? ">" + e : e);
+  const live = Object.entries(l.live).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${int(v.count)}</td><td class="num">${num(v.p50_ms, 3)}</td><td class="num">${num(v.p95_ms, 3)}</td><td class="num">${num(v.p99_ms, 3)}</td></tr>`).join("");
+  $("#app").innerHTML =
+    kpi(num(b.feature_fetch.p50_ms, 3) + " ms", "feature fetch p50") + kpi(num(b.feature_fetch.p99_ms, 3) + " ms", "feature fetch p99") +
+    kpi(num(b.model_score.p50_ms, 2) + " ms", "model score p50") + kpi(num(b.model_score.p99_ms, 2) + " ms", "model score p99") +
+    panel("c6", "p50 and p99 by stage, ms (one axis)", bars([
+      { label: "fetch p50", v: b.feature_fetch.p50_ms }, { label: "fetch p99", v: b.feature_fetch.p99_ms },
+      { label: "score p50", v: b.model_score.p50_ms }, { label: "score p99", v: b.model_score.p99_ms },
+      { label: "total p50", v: b.total.p50_ms }, { label: "total p99", v: b.total.p99_ms }], (v) => num(v, 3) + " ms")) +
+    panel("c6", "Live, since the API started (also in /metrics)", `<div class="scroll"><table><tr><th>Stage</th><th class="num">Count</th><th class="num">p50 ms</th><th class="num">p95 ms</th><th class="num">p99 ms</th></tr>${live}</table></div><p class="muted note">Request includes HTTP parsing and JSON. Benchmark: ${int(b.requests)} in-process requests on real cards from the last day.</p>`) +
+    panel("c6", "Feature fetch latency, requests per bucket (ms lower edge)", histogram(lab, b.histogram_ms.feature_fetch)) +
+    panel("c6", "Model score latency, requests per bucket (ms lower edge)", histogram(lab, b.histogram_ms.model_score));
+}
+
+async function viewFreshness() {
+  delete cache["/freshness"];
+  const f = await get("/freshness");
+  const rows = f.features.map((r) => `<tr><td>${esc(r.feature)}</td><td>${esc(r.source)}</td><td class="num">${int(r.sla_s)}s</td><td class="num">${int(r.lag_s)}s</td><td><span class="chip ${r.status}">${r.status}</span></td></tr>`).join("");
+  $("#app").innerHTML = panel("c12", "Freshness per feature", `<p class="muted note">Stream features: how far the online store's latest processed event time trails the newest event in the source. Batch features: age of the last table load. Source high water ${dt(f.source_high_water_ts)}, online store at ${dt(f.online_max_event_ts)}.</p><div class="scroll"><table><tr><th>Feature</th><th>Source</th><th class="num">SLA</th><th class="num">Lag</th><th>Status</th></tr>${rows}</table></div>`);
+}
+
+const views = { model: viewModel, registry: viewRegistry, timeline: (arg) => viewTimeline(arg), skew: (arg) => viewSkew(arg === "on"), latency: viewLatency, freshness: viewFreshness };
+async function route() {
+  const [v, arg] = (location.hash.replace("#/", "") || "model").split("/");
+  document.querySelectorAll("nav a").forEach((a) => a.classList.toggle("on", a.id === "nav-" + v));
+  try { await (views[v] || viewModel)(arg); } catch (e) { $("#app").innerHTML = panel("c12", "Error", `<pre>${esc(e.message)}</pre>`); }
+}
+window.addEventListener("hashchange", route);
+route();
+</script>
+</body>
+</html>
